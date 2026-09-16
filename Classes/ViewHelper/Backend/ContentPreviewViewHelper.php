@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\ViewHelper\Backend;
+namespace Flowd\Typo3Look\ViewHelper\Backend;
 
-use Flowd\Look\Asset\AssetCollectorIsolation;
-use Flowd\Look\Asset\PreviewAssetMarkup;
-use Flowd\Look\Backend\RecordEditAccess;
-use Flowd\Look\Resource\PublicResourceUri;
+use Flowd\Typo3Look\Asset\AssetCollectorIsolation;
+use Flowd\Typo3Look\Asset\PreviewAssetMarkup;
+use Flowd\Typo3Look\Backend\RecordEditAccess;
+use Flowd\Typo3Look\Resource\PublicResourceUri;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;

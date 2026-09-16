@@ -18,10 +18,10 @@
 			"homepage": "https://flowd.de"
 		}
 	],
-	"homepage": "https://github.com/flowdgmbh/typo3-look",
+	"homepage": "https://github.com/flowd/typo3-look",
 	"support": {
-		"issues": "https://github.com/flowdgmbh/typo3-look/issues",
-		"source": "https://github.com/flowdgmbh/typo3-look",
+		"issues": "https://github.com/flowd/typo3-look/issues",
+		"source": "https://github.com/flowd/typo3-look",
 		"docs": "https://docs.typo3.org/p/flowd/typo3-look/main/en-us/"
 	},
 	"require": {
@@ -51,12 +51,12 @@
 	"prefer-stable": true,
 	"autoload": {
 		"psr-4": {
-			"Flowd\\Look\\": "Classes/"
+			"Flowd\\Typo3Look\\": "Classes/"
 		}
 	},
 	"autoload-dev": {
 		"psr-4": {
-			"Flowd\\Look\\Tests\\": "Tests/"
+			"Flowd\\Typo3Look\\Tests\\": "Tests/"
 		}
 	},
 	"config": {

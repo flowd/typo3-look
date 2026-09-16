@@ -28,7 +28,7 @@ helper:
 
     <html data-namespace-typo3-fluid="true"
           xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-          xmlns:look="http://typo3.org/ns/Flowd/Look/ViewHelper"
+          xmlns:look="http://typo3.org/ns/Flowd/Typo3Look/ViewHelper"
           xmlns:my="http://typo3.org/ns/Vendor/MySite/Components/ComponentCollection">
     <f:layout name="Preview" />
     <f:section name="Content">
@@ -88,7 +88,7 @@ its rendering in the view helper the same way:
 
     <html data-namespace-typo3-fluid="true"
           xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-          xmlns:look="http://typo3.org/ns/Flowd/Look/ViewHelper">
+          xmlns:look="http://typo3.org/ns/Flowd/Typo3Look/ViewHelper">
     <look:backend.contentPreview
         css="{0: 'EXT:my_site/Resources/Public/Css/main.css'}">
         <f:render partial="Content/Textmedia" arguments="{record: record}" />

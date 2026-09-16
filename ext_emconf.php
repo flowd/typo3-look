@@ -20,7 +20,7 @@ $EM_CONF[$_EXTKEY] = [
     ],
     'autoload' => [
         'psr-4' => [
-            'Flowd\\Look\\' => 'Classes/',
+            'Flowd\\Typo3Look\\' => 'Classes/',
         ],
     ],
 ];

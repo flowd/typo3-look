@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Asset;
+namespace Flowd\Typo3Look\Asset;
 
 use TYPO3\CMS\Core\Page\AssetCollector;
 

@@ -7,13 +7,13 @@
 >
     <extension
         class="\T3Docs\Typo3DocsTheme\DependencyInjection\Typo3DocsThemeExtension"
-        project-home="https://github.com/flowdgmbh/typo3-look"
-        project-repository="https://github.com/flowdgmbh/typo3-look"
-        project-issues="https://github.com/flowdgmbh/typo3-look/issues"
-        edit-on-github="flowdgmbh/typo3-look"
+        project-home="https://github.com/flowd/typo3-look"
+        project-repository="https://github.com/flowd/typo3-look"
+        project-issues="https://github.com/flowd/typo3-look/issues"
+        edit-on-github="flowd/typo3-look"
         edit-on-github-branch="main"
         typo3-core-preferred="stable"
-        interlink-shortcode="flowd/look"
+        interlink-shortcode="flowd/typo3-look"
     />
     <project
         title="Look - real frontend previews in the TYPO3 page module"

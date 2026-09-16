@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Tests\Unit\Asset;
+namespace Flowd\Typo3Look\Tests\Unit\Asset;
 
-use Flowd\Look\Asset\IsolatedRendering;
-use Flowd\Look\Asset\PreviewAssetMarkup;
-use Flowd\Look\Resource\PublicResourceUri;
+use Flowd\Typo3Look\Asset\IsolatedRendering;
+use Flowd\Typo3Look\Asset\PreviewAssetMarkup;
+use Flowd\Typo3Look\Resource\PublicResourceUri;
 use PHPUnit\Framework\Attributes\Test;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;
 

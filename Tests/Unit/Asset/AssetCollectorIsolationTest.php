@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Tests\Unit\Asset;
+namespace Flowd\Typo3Look\Tests\Unit\Asset;
 
-use Flowd\Look\Asset\AssetCollectorIsolation;
+use Flowd\Typo3Look\Asset\AssetCollectorIsolation;
 use PHPUnit\Framework\Attributes\Test;
 use TYPO3\CMS\Core\Page\AssetCollector;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Resource;
+namespace Flowd\Typo3Look\Resource;
 
 use TYPO3\CMS\Core\SystemResource\Publishing\SystemResourcePublisherInterface;
 use TYPO3\CMS\Core\SystemResource\SystemResourceFactory;

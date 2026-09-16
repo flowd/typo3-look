@@ -2,7 +2,7 @@ services:
     _defaults:
         autoconfigure: true
         autowire: true
-    Flowd\Look\:
+    Flowd\Typo3Look\:
         resource: '../Classes/*'
         # value object, not a service
         exclude: '../Classes/Asset/IsolatedRendering.php'

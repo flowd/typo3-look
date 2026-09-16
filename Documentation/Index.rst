@@ -10,7 +10,7 @@ Look
     look
 
 :Package name:
-    flowd/look
+    flowd/typo3-look
 
 :Version:
     |release|
