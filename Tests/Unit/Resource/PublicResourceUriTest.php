@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Tests\Unit\Resource;
+namespace Flowd\Typo3Look\Tests\Unit\Resource;
 
-use Flowd\Look\Resource\PublicResourceUri;
+use Flowd\Typo3Look\Resource\PublicResourceUri;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use TYPO3\TestingFramework\Core\Unit\UnitTestCase;

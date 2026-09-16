@@ -53,7 +53,7 @@ the `backend-preview.html` of the block:
 ```html
 <html data-namespace-typo3-fluid="true"
       xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
-      xmlns:look="http://typo3.org/ns/Flowd/Look/ViewHelper"
+      xmlns:look="http://typo3.org/ns/Flowd/Typo3Look/ViewHelper"
       xmlns:my="http://typo3.org/ns/Vendor/MySite/Components/ComponentCollection">
 <f:layout name="Preview" />
 <f:section name="Content">

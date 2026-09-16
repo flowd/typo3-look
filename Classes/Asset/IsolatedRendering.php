@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Asset;
+namespace Flowd\Typo3Look\Asset;
 
 /**
  * Result of AssetCollectorIsolation::run(): the rendered content and the assets it registered.

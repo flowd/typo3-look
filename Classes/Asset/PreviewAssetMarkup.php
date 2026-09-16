@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Asset;
+namespace Flowd\Typo3Look\Asset;
 
-use Flowd\Look\Resource\PublicResourceUri;
+use Flowd\Typo3Look\Resource\PublicResourceUri;
 use TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder;
 
 /**

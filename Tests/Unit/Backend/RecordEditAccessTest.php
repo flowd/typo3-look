@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Tests\Unit\Backend;
+namespace Flowd\Typo3Look\Tests\Unit\Backend;
 
-use Flowd\Look\Backend\PageAccess;
-use Flowd\Look\Backend\RecordEditAccess;
+use Flowd\Typo3Look\Backend\PageAccess;
+use Flowd\Typo3Look\Backend\RecordEditAccess;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use TYPO3\CMS\Core\Authentication\AccessCheckResult;

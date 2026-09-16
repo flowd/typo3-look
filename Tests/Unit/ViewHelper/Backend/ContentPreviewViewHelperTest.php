@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Tests\Unit\ViewHelper\Backend;
+namespace Flowd\Typo3Look\Tests\Unit\ViewHelper\Backend;
 
-use Flowd\Look\Asset\AssetCollectorIsolation;
-use Flowd\Look\Asset\PreviewAssetMarkup;
-use Flowd\Look\Backend\PageAccess;
-use Flowd\Look\Backend\RecordEditAccess;
-use Flowd\Look\Resource\PublicResourceUri;
-use Flowd\Look\ViewHelper\Backend\ContentPreviewViewHelper;
+use Flowd\Typo3Look\Asset\AssetCollectorIsolation;
+use Flowd\Typo3Look\Asset\PreviewAssetMarkup;
+use Flowd\Typo3Look\Backend\PageAccess;
+use Flowd\Typo3Look\Backend\RecordEditAccess;
+use Flowd\Typo3Look\Resource\PublicResourceUri;
+use Flowd\Typo3Look\ViewHelper\Backend\ContentPreviewViewHelper;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use Psr\Http\Message\ServerRequestInterface;

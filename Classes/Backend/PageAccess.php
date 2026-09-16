@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Backend;
+namespace Flowd\Typo3Look\Backend;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 

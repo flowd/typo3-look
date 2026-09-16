@@ -51,12 +51,12 @@
 	"prefer-stable": true,
 	"autoload": {
 		"psr-4": {
-			"Flowd\\Look\\": "Classes/"
+			"Flowd\\Typo3Look\\": "Classes/"
 		}
 	},
 	"autoload-dev": {
 		"psr-4": {
-			"Flowd\\Look\\Tests\\": "Tests/"
+			"Flowd\\Typo3Look\\Tests\\": "Tests/"
 		}
 	},
 	"config": {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Flowd\Look\Backend;
+namespace Flowd\Typo3Look\Backend;
 
 use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
