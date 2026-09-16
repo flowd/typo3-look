@@ -15,7 +15,7 @@ Look is installed like any other TYPO3 extension in a Composer based project:
 
 ..  code-block:: bash
 
-    composer require flowd/look
+    composer require flowd/typo3-look
 
 Afterwards set up the extension so that TYPO3 picks up its configuration:
 
