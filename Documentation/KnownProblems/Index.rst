@@ -14,6 +14,42 @@ This chapter lists the symptoms and the fixes.
     :local:
     :depth: 1
 
+..  _known-problems-basic-auth:
+
+The previews stay empty on a password-protected site
+====================================================
+
+**Symptom:** the website asks for a user name and password before it shows
+anything (HTTP Basic Auth, common on staging and preview servers). In the
+page module every Look preview is an empty box, about 150 pixels high, with
+no styling and no images. The browser console reports 401 errors for the
+files inside the frame.
+
+**Cause:** this is intended. The preview frame is deliberately isolated from
+the backend, see :ref:`security`. The browser treats it like a page from an
+unknown website: it has no login of any kind, neither your TYPO3 session nor
+the password you typed into the browser's prompt. Every stylesheet, script and
+image the frame requests is therefore refused by the server, and browsers do
+not show a password prompt for such requests.
+
+It is the same wall that protects your session. Nothing rendered inside a
+preview can reach the backend, and in return the preview cannot borrow the
+backend's credentials. Look has no switch to open that wall, because opening
+it would give preview content the same access to the backend that you have.
+
+**What you can do:** nothing inside TYPO3, this is a property of the server
+setup. The previews work on every installation that is reachable without a
+password prompt, which is the normal case for a live site.
+
+In theory the server could be configured to deliver the static files the
+previews need (stylesheets, scripts, images, fonts) without asking for the
+password, while the pages themselves stay protected. Be aware of what that
+means: depending on how it is done, those files become publicly readable
+for anyone who knows or guesses their address, including uploaded images
+and documents. Whether that is acceptable has to be decided per project.
+Look neither recommends nor documents such a setup; if it is done, it is
+entirely the responsibility of the people operating the server.
+
 ..  _known-problems-external-hosts:
 
 Assets from other hosts do not load
