@@ -69,5 +69,22 @@ jobs:
           COMMENT="$RELEASE_BODY"
           if [ -z "$(echo "$COMMENT" | tr -d '[:space:]')" ]; then
             COMMENT="Release $version, see https://github.com/$REPOSITORY/releases/tag/$TAG"
+          else
+            COMMENT=$(printf '%s' "$COMMENT" \
+              | tr -d '\r' \
+              | sed '/^```/d' \
+              | sed '/^#\{1,6\} /{s/^#\{1,6\} //;s/^/\n/;}' \
+              | sed '/^!\[.*\](.*)/d' \
+              | sed '/^|[ :|-]*|$/d' \
+              | sed '/^|/{s/^| *//;s/ *|$//;s/ *| */ — /g;}' \
+              | sed 's/\*\*\([^*]*\)\*\*/\1/g' \
+              | sed 's/\*\([^*]*\)\*/\1/g' \
+              | sed 's/\[\([^]]*\)\]([^)]*)/\1/g' \
+              | sed 's/^- /• /g' \
+              | sed 's/\\`/`/g' \
+              | tr -d '`' \
+              | sed '/^Full Changelog:/d' \
+              | cat -s)
+            COMMENT=$(printf '%s\n\nFull release notes: https://github.com/%s/releases/tag/%s' "$COMMENT" "$REPOSITORY" "$TAG")
           fi
           tailor ter:publish --comment "$COMMENT" "$version"
