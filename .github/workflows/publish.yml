@@ -1,54 +1,67 @@
 # Publishes a GitHub release to the TYPO3 Extension Repository (TER).
 #
-# Create a release with a semantic version tag (e.g. 1.2.0). The workflow checks that the tag
-# matches the version in ext_emconf.php, then uploads the extension with TYPO3 Tailor using the
-# release notes as upload comment. Required repository secret: TYPO3_API_TOKEN (create it at
-# https://extensions.typo3.org/my-access-tokens with the "extension publishing" scope).
+# Create a release with a semantic version tag (e.g. 1.2.0). The workflow writes the tag into
+# ext_emconf.php with TYPO3 Tailor (the committed file carries a placeholder), verifies the result and
+# uploads the extension using the release notes as upload comment. Required repository secret:
+# TYPO3_API_TOKEN (create it at https://extensions.typo3.org/my-access-tokens with the "extension
+# publishing" scope, limited to this extension). The secret is exposed to the upload step only.
 name: Publish to TER
 
 on:
   release:
     types: [published]
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     name: Upload to TER
     runs-on: ubuntu-latest
-    env:
-      TYPO3_EXTENSION_KEY: look
-      TYPO3_API_TOKEN: ${{ secrets.TYPO3_API_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Check tag against ext_emconf.php
+      - name: Version from tag
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Tag '$GITHUB_REF_NAME' is not a semantic version"; exit 1
-          fi
-          EMCONF_VERSION=$(php -r '$_EXTKEY="look"; $EM_CONF=[]; include "ext_emconf.php"; echo $EM_CONF[$_EXTKEY]["version"];')
-          if [ "$VERSION" != "$EMCONF_VERSION" ]; then
-            echo "Tag version $VERSION does not match ext_emconf.php version $EMCONF_VERSION"; exit 1
+          if ! echo "$VERSION" | grep -Eq '^(0|[1-9][0-9]{0,2})(\.(0|[1-9][0-9]{0,2})){2}$'; then
+            echo "Tag '$GITHUB_REF_NAME' is not a semantic version (three numbers, each 0 to 999)"; exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_ENV"
 
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: '8.3'
           coverage: none
           tools: composer:v2
 
       - name: Install TYPO3 Tailor
-        run: composer global require typo3/tailor --no-interaction --no-progress
+        run: composer global require typo3/tailor:2.0.0 --no-interaction --no-progress
 
-      - name: Remove development files
-        run: composer prepare-release --no-interaction
+      - name: Write version into ext_emconf.php
+        run: tailor set-version --no-docs "$version"
+
+      - name: Verify ext_emconf.php version (extension key from composer.json, as Tailor reads it)
+        run: |
+          set -euo pipefail
+          ACTUAL=$(php -d display_errors=stderr -r '
+            $composer = json_decode((string)file_get_contents("composer.json"), true);
+            $_EXTKEY = $composer["extra"]["typo3/cms"]["extension-key"] ?? "";
+            if ($_EXTKEY === "") { fwrite(STDERR, "composer.json has no extra.typo3/cms.extension-key\n"); exit(1); }
+            $EM_CONF = [];
+            include "ext_emconf.php";
+            echo $EM_CONF[$_EXTKEY]["version"] ?? "";
+          ')
+          if [ "$ACTUAL" != "$version" ]; then
+            echo "ext_emconf.php carries version '$ACTUAL', expected '$version'"; exit 1
+          fi
 
       # The release body reaches the script through the environment, never through "${{ }}"
       # interpolation: expressions are substituted into the script text before the shell runs, so a
       # body could otherwise end the here-document and have the rest executed as shell commands.
       - name: Upload to TER
         env:
+          TYPO3_API_TOKEN: ${{ secrets.TYPO3_API_TOKEN }}
           RELEASE_BODY: ${{ github.event.release.body }}
           REPOSITORY: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
@@ -57,4 +70,4 @@ jobs:
           if [ -z "$(echo "$COMMENT" | tr -d '[:space:]')" ]; then
             COMMENT="Release $version, see https://github.com/$REPOSITORY/releases/tag/$TAG"
           fi
-          ~/.composer/vendor/bin/tailor ter:publish --comment "$COMMENT" "$version"
+          tailor ter:publish --comment "$COMMENT" "$version"

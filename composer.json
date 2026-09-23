@@ -96,11 +96,7 @@
 			"@fix:php:cs-fixer"
 		],
 		"fix:php:cs-fixer": "php-cs-fixer fix --config=Build/php-cs-fixer/config.php",
-		"fix:php:rector": "rector process --config=Build/rector/config.php",
-		"prepare-release": [
-			"rm -rf .Build .github Build Tests var",
-			"rm -f .editorconfig .gitattributes .gitignore"
-		]
+		"fix:php:rector": "rector process --config=Build/rector/config.php"
 	},
 	"scripts-descriptions": {
 		"check": "Runs all checks: code style, static analysis, Rector, unit tests.",
@@ -108,7 +104,6 @@
 		"check:php:phpstan": "Runs the static analysis (PHPStan, level max).",
 		"check:php:rector": "Checks whether Rector would change code.",
 		"check:tests:unit": "Runs the unit tests.",
-		"fix": "Applies Rector and PHP-CS-Fixer.",
-		"prepare-release": "Removes development-only files before a TER release."
+		"fix": "Applies Rector and PHP-CS-Fixer."
 	}
 }
