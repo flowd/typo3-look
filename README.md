@@ -147,9 +147,6 @@ composer check       # PHP-CS-Fixer, PHPStan (level max), Rector, unit tests
 composer fix         # apply Rector and PHP-CS-Fixer
 ```
 
-Releases: publish a GitHub release whose tag equals the version in `ext_emconf.php`; the
-`publish` workflow uploads the extension to the TER (secret `TYPO3_API_TOKEN`).
-
 ## License
 
 GPL-2.0-or-later. Made by [Flowd GmbH](https://www.flowd.de).
