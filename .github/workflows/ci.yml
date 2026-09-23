@@ -29,6 +29,7 @@ jobs:
           --with "typo3/cms-core:${{ matrix.typo3 }}"
           --with "typo3/cms-backend:${{ matrix.typo3 }}"
           --with "typo3/cms-fluid:${{ matrix.typo3 }}"
+          --with "typo3/cms-frontend:${{ matrix.typo3 }}"
 
       - name: Code style (PHP-CS-Fixer)
         run: composer check:php:cs-fixer

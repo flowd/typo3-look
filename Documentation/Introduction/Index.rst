@@ -62,14 +62,20 @@ Who is it for?
 How does it work?
 =================
 
-Look ships one Fluid view helper, :html:`<look:backend.contentPreview>`. You
-wrap it around the frontend markup of a content element, typically in the
-backend preview template of a Content Block. The view helper
+Look's central view helper is :html:`<look:backend.contentPreview>`. You
+wrap it around the frontend markup of a content element. The view helper
 
 #.  renders the markup you pass it,
 #.  puts it into a complete HTML document together with the stylesheets and
     scripts of your site,
 #.  and shows that document in a sandboxed :html:`<iframe>` in the page module.
+
+Where the markup comes from depends on the site. With Content Blocks and
+Fluid Components, the backend preview of a block calls the same component as
+the frontend, the preferred way. Classic content types rendered through
+TypoScript hand the record to the view helper, which renders it with the
+frontend TypoScript of its page in a separate request, so the site's PHP
+never runs inside the page module. Both are described in :ref:`usage`.
 
 The frame reports its content height to the backend, so the page module
 always shows the whole element (or a fixed height with a fade-out, if you

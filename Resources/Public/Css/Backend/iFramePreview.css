@@ -37,3 +37,17 @@ body {
 .look-media-blocked video::-webkit-media-controls {
     display: none;
 }
+
+/* error document of the preview request */
+.look-preview-error {
+    font: 14px/1.4 system-ui, sans-serif;
+    color: #6b1e1e;
+    background: #f9e2e2;
+    border: 1px solid #e5b4b4;
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin: 8px;
+}
+.look-preview-error p {
+    margin: 4px 0 0;
+}

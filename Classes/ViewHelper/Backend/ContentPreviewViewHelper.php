@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace Flowd\Typo3Look\ViewHelper\Backend;
 
 use Flowd\Typo3Look\Asset\AssetCollectorIsolation;
-use Flowd\Typo3Look\Asset\PreviewAssetMarkup;
 use Flowd\Typo3Look\Backend\RecordEditAccess;
-use Flowd\Typo3Look\Resource\PublicResourceUri;
+use Flowd\Typo3Look\Preview\PreviewDescriptor;
+use Flowd\Typo3Look\Preview\PreviewDocument;
+use Flowd\Typo3Look\Preview\PreviewTokenService;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Backend\ViewHelpers\Link\EditRecordViewHelper;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Configuration\Features;
 use TYPO3\CMS\Core\Core\Environment;
@@ -28,59 +31,46 @@ use TYPO3Fluid\Fluid\Core\ViewHelper\AbstractViewHelper;
 use TYPO3Fluid\Fluid\Core\ViewHelper\TagBuilder;
 
 /**
- * Renders its children inside a scaled iframe (srcdoc) that loads the given site assets, so the
- * page module shows the real frontend markup of a content element.
+ * Shows a content element in the page module as the frontend renders it, inside a sandboxed iframe
+ * ("allow-scripts" only: opaque origin, no access to the backend document, cookies or storage, no
+ * forms, popups or navigation; no pointer events). Its height is reported to the backend page via
+ * postMessage (iFramePreview.js -> ContentPreviewHost.js).
  *
- * The iframe is sandboxed ("allow-scripts" only: opaque origin, no access to the backend document,
- * cookies or storage, no forms, popups or navigation) and takes no pointer events, so nothing
- * rendered from editor content can reach the backend session. Its height is reported to the backend
- * page via postMessage (iFramePreview.js -> ContentPreviewHost.js).
+ * Two ways to fill the frame:
  *
- * The opaque origin has two consequences for the site assets: web fonts and JavaScript modules are
- * fetched in CORS mode and only load when the server sends "Access-Control-Allow-Origin", and
- * external <svg><use href> references do not work inside. Look's own script is therefore a classic
- * script, so the preview works without any web server configuration. The srcdoc document also
- * inherits the Content Security Policy of the backend, which only allows assets from its own host.
+ * - Children: the view helper renders its children (a Fluid component, a partial, plain HTML) in the
+ *   page module request and puts the document into the srcdoc of the iframe. For Content Blocks with
+ *   Fluid Components.
  *
- * Assets the preview content registers with f:asset.css / f:asset.script end up in the head of
- * the iframe (AssetCollectorIsolation), not in the backend page.
+ * - "record": no children. The record is rendered with the frontend TypoScript of its page in a
+ *   separate request (PreviewController), so the site's PHP never runs inside the page module. The
+ *   view helper emits a signed descriptor of what to render; the page module's script exchanges it
+ *   for a short-lived token when the frame comes into view and sets the frame's src. For classic
+ *   content types and everything rendered through TypoScript.
  *
- * Scripts inside the frame are limited by a Content Security Policy in the preview document to the
- * script tags the template emits (nonce of the backend request, 'strict-dynamic' for their module
- * imports); script tags in the preview content itself do not run.
- *
- * Feature flag "look.contentPreview.allowSiteScripts" (off by default): loads the "js" modules of
- * the site inside the frame. Without it only the look script runs (height, fade-out overlay).
- *
- * Feature flag "look.contentPreview.allowMedia" (off by default): loads video, audio and embedded
- * players (iframes) inside the frame. Off, "media-src 'none'; frame-src 'none'" in the preview
- * document keeps them from being loaded; video elements stay as placeholder boxes.
- *
- * Both flags live in $GLOBALS['TYPO3_CONF_VARS']['SYS']['features']; the default is always the
- * most restrictive preview.
- *
- * Feature flag "look.contentPreview.editOverlay" (off by default): wraps the preview in a hover
- * overlay that opens the record for editing, but only for users who may edit it (RecordEditAccess,
- * same rules as the edit button in the element header). It behaves like that button: where
- * be:link.editRecord knows the "contextual" argument (TYPO3 14.3+) the contextual edit panel opens,
- * otherwise the classic edit form. The record is taken from the template variables: "data"
- * (Content Blocks, Record API object) or "record" (classic preview templates, tt_content row).
+ * The frame's Content Security Policy limits scripts to the ones the document emits; scripts in the
+ * content itself do not run. Feature flags (all off by default, $GLOBALS['TYPO3_CONF_VARS']['SYS']
+ * ['features']): "look.contentPreview.allowSiteScripts" loads the site's "js" modules inside the
+ * frame, "look.contentPreview.allowMedia" allows video, audio and embedded players,
+ * "look.contentPreview.editOverlay" wraps the preview in a hover overlay that opens the record for
+ * editing, only for users who may edit it (RecordEditAccess). The record for the overlay is the
+ * "record" argument, or the template variables "data" (Content Blocks) or "record".
  *
  * "scale" and "height" fall back to the extension configuration (contentPreview.scale,
  * contentPreview.height) when the view helper is called without them.
  *
- *   <look:backend.contentPreview scale="0.6" bodyClass="application"
- *       css="{0: 'EXT:my_site/Resources/Public/Build/main.css'}"
- *       js="{0: 'EXT:my_site/Resources/Public/Build/main.js'}">
- *       ...frontend markup...
+ *   <look:backend.contentPreview css="{0: 'EXT:my_site/Resources/Public/Build/main.css'}">
+ *       <my:element.textmedia record="{data}" />
  *   </look:backend.contentPreview>
+ *
+ *   <look:backend.contentPreview record="{record}" css="{0: 'EXT:my_site/Resources/Public/Css/main.css'}" />
  */
 class ContentPreviewViewHelper extends AbstractViewHelper implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
-    public const FEATURE_ALLOW_SITE_SCRIPTS = 'look.contentPreview.allowSiteScripts';
-    public const FEATURE_ALLOW_MEDIA = 'look.contentPreview.allowMedia';
+    public const FEATURE_ALLOW_SITE_SCRIPTS = PreviewDocument::FEATURE_ALLOW_SITE_SCRIPTS;
+    public const FEATURE_ALLOW_MEDIA = PreviewDocument::FEATURE_ALLOW_MEDIA;
     public const FEATURE_EDIT_OVERLAY = 'look.contentPreview.editOverlay';
 
     protected $escapeOutput = false;
@@ -93,14 +83,17 @@ class ContentPreviewViewHelper extends AbstractViewHelper implements LoggerAware
         protected readonly Features $features,
         protected readonly ExtensionConfiguration $extensionConfiguration,
         protected readonly AssetCollectorIsolation $assetCollectorIsolation,
-        protected readonly PreviewAssetMarkup $previewAssetMarkup,
         protected readonly RecordEditAccess $recordEditAccess,
-        protected readonly PublicResourceUri $publicResourceUri,
         protected readonly ViewFactoryInterface $viewFactory,
+        protected readonly PreviewDocument $previewDocument,
+        protected readonly PreviewTokenService $tokenService,
+        protected readonly UriBuilder $uriBuilder,
     ) {}
 
     public function initializeArguments(): void
     {
+        $this->registerArgument('record', RecordInterface::class, 'Render this record with the frontend TypoScript of its page in a separate request instead of the children');
+        $this->registerArgument('typoscriptObjectPath', 'string', 'Content object that renders the record (with "record")', false, 'tt_content');
         $this->registerArgument('height', 'integer', 'Limit the height of the preview in pixel (default: extension configuration contentPreview.height, 0 = no limit)');
         $this->registerArgument('scale', 'double', 'Scaling of the preview (default: extension configuration contentPreview.scale)');
         $this->registerArgument('bodyClass', 'string', 'CSS class(es) for the body element inside the preview iframe', false, '');
@@ -112,71 +105,129 @@ class ContentPreviewViewHelper extends AbstractViewHelper implements LoggerAware
     {
         try {
             $request = $this->renderingContext()->getAttribute(ServerRequestInterface::class);
-            $nonce = $request instanceof ServerRequestInterface ? $request->getAttribute('nonce') : null;
-            if (!$nonce instanceof ConsumableNonce) {
-                throw new \RuntimeException('The content preview needs the CSP nonce of the backend request', 1789500000);
+            if (!$request instanceof ServerRequestInterface) {
+                throw new \RuntimeException('The content preview needs the backend request in the rendering context', 1789500002);
             }
-
-            $allowSiteScripts = $this->features->isFeatureEnabled(self::FEATURE_ALLOW_SITE_SCRIPTS);
             // scale must be positive; height 0 is a valid value (no limit) and must not fall back to the configured default
             $scale = $this->positiveNumber($this->arguments['scale'] ?? null) ?? $this->configuredDefault('scale', 0.5);
             $height = (int)($this->nonNegativeNumber($this->arguments['height'] ?? null) ?? $this->configuredDefault('height', 0));
             $bodyClass = is_string($this->arguments['bodyClass'] ?? null) ? $this->arguments['bodyClass'] : '';
-            $css = $this->resolvedAssetUris($this->arguments['css'] ?? null);
-            $js = $allowSiteScripts ? $this->resolvedAssetUris($this->arguments['js'] ?? null) : [];
-            $nonceValue = $nonce->consumeStatic('look.contentPreview');
-            $rendering = $this->assetCollectorIsolation->run(function (): string {
-                $children = $this->renderChildren();
-                return is_scalar($children) ? (string)$children : '';
-            });
-
-            $view = $this->createView($request);
-            $view->assignMultiple([
-                'scale' => $scale,
-                'height' => $height,
-                'bodyClass' => $bodyClass,
-                'allowMedia' => $this->features->isFeatureEnabled(self::FEATURE_ALLOW_MEDIA),
-                'nonce' => $nonceValue,
-                'previewContent' => $rendering->content,
-                'assets' => [
-                    'css' => [$this->publicResourceUri->resolve('EXT:look/Resources/Public/Css/Backend/iFramePreview.css'), ...$css],
-                    'lookScript' => $this->publicResourceUri->resolve('EXT:look/Resources/Public/Javascript/Backend/iFramePreview.js'),
-                    'js' => $js,
-                    'collectedStyles' => $this->previewAssetMarkup->styles($rendering->assets),
-                    'collectedScripts' => $allowSiteScripts ? $this->previewAssetMarkup->scripts($rendering->assets, $nonceValue) : '',
-                ],
-            ]);
-
-            $style = 'width:100%;';
-            $style .= 'pointer-events: none;';
-            if ($height > 0) {
-                $style .= sprintf('max-height: %dpx;', $height);
-            }
-
-            $this->pageRenderer->loadJavaScriptModule('@flowd/look/Backend/ContentPreviewHost.js');
+            $css = $this->stringList($this->arguments['css'] ?? null);
+            $js = $this->stringList($this->arguments['js'] ?? null);
+            $record = $this->arguments['record'] ?? null;
 
             $tagBuilder = new TagBuilder('iframe');
             $tagBuilder->addAttribute('class', 'look-content-preview');
-            $tagBuilder->addAttribute('style', $style);
-            $tagBuilder->addAttribute('srcdoc', trim($view->render('IFramePreview')));
+            $tagBuilder->addAttribute('style', $this->frameStyle($height));
             $tagBuilder->addAttribute('sandbox', 'allow-scripts');
             $tagBuilder->addAttribute('referrerpolicy', 'no-referrer');
             $tagBuilder->addAttribute('title', 'Content preview');
-            $tagBuilder->addAttribute('loading', 'lazy');
             $tagBuilder->forceClosingTag(true);
 
-            return $this->wrapWithEditOverlay($tagBuilder->render(), $request);
+            if ($record instanceof RecordInterface) {
+                $this->addIsolatedPreview($tagBuilder, $record, $scale, $height, $bodyClass, $css, $js);
+            } else {
+                $this->addInlinePreview($tagBuilder, $request, $scale, $height, $bodyClass, $css, $js);
+            }
+            $this->pageRenderer->loadJavaScriptModule('@flowd/look/Backend/ContentPreviewHost.js');
+
+            return $this->wrapWithEditOverlay($tagBuilder->render(), $request, $record instanceof RecordInterface ? $record : null);
         } catch (\Throwable $e) {
             return $this->renderError($e);
         }
     }
 
-    private function wrapWithEditOverlay(string $iframe, ServerRequestInterface $request): string
+    /**
+     * Children rendered here, document as srcdoc.
+     *
+     * @param list<string> $css
+     * @param list<string> $js
+     */
+    private function addInlinePreview(TagBuilder $tagBuilder, ServerRequestInterface $request, float $scale, int $height, string $bodyClass, array $css, array $js): void
+    {
+        $nonce = $request->getAttribute('nonce');
+        if (!$nonce instanceof ConsumableNonce) {
+            throw new \RuntimeException('The content preview needs the CSP nonce of the backend request', 1789500000);
+        }
+        $rendering = $this->assetCollectorIsolation->run(function (): string {
+            $children = $this->renderChildren();
+            return is_scalar($children) ? (string)$children : '';
+        });
+        $document = $this->previewDocument->render($request, $nonce->consumeStatic('look.contentPreview'), $rendering, $scale, $height, $bodyClass, $css, $js);
+        $tagBuilder->addAttribute('srcdoc', $document);
+        $tagBuilder->addAttribute('loading', 'lazy');
+    }
+
+    /**
+     * Record rendered in the preview request: the frame gets no src yet, only the signed descriptor
+     * and the URL of the token route; ContentPreviewHost.js does the rest when the frame comes into view.
+     *
+     * @param list<string> $css
+     * @param list<string> $js
+     */
+    private function addIsolatedPreview(TagBuilder $tagBuilder, RecordInterface $record, float $scale, int $height, string $bodyClass, array $css, array $js): void
+    {
+        $children = $this->renderChildren();
+        if (is_string($children) && trim($children) !== '') {
+            throw new \RuntimeException('The content preview renders either its children or the "record" argument, not both', 1789500003);
+        }
+        $backendUser = $GLOBALS['BE_USER'] ?? null;
+        $userId = $backendUser instanceof BackendUserAuthentication ? $backendUser->getUserId() : null;
+        if (!$backendUser instanceof BackendUserAuthentication || $userId === null || $userId <= 0) {
+            throw new \RuntimeException('The content preview of a record needs a logged in backend user', 1789500004);
+        }
+        $path = $this->arguments['typoscriptObjectPath'] ?? null;
+        $descriptor = new PreviewDescriptor(
+            table: $record->getMainType(),
+            uid: $record->getUid(),
+            pid: $record->getPid(),
+            workspace: $backendUser->workspace,
+            language: $this->languageOf($record),
+            typoScriptObjectPath: is_string($path) && $path !== '' ? $path : 'tt_content',
+            scale: $scale,
+            height: $height,
+            bodyClass: $bodyClass,
+            css: $css,
+            js: $js,
+            backendUserId: $userId,
+            issued: time(),
+        );
+        $tagBuilder->addAttribute('data-look-preview', $this->tokenService->signDescriptor($descriptor));
+        $tagBuilder->addAttribute('data-look-preview-token-url', (string)$this->uriBuilder->buildUriFromRoute('ajax_look_preview_token'));
+        // "about:blank" until the script sets the real source; keeps the frame from loading the page module itself
+        $tagBuilder->addAttribute('src', 'about:blank');
+    }
+
+    private function languageOf(RecordInterface $record): int
+    {
+        $tca = $GLOBALS['TCA'] ?? null;
+        $tableTca = is_array($tca) ? ($tca[$record->getMainType()] ?? null) : null;
+        $control = is_array($tableTca) ? ($tableTca['ctrl'] ?? null) : null;
+        $languageField = is_array($control) ? ($control['languageField'] ?? null) : null;
+        $row = $record->getRawRecord()?->toArray() ?? [];
+        $value = is_string($languageField) ? ($row[$languageField] ?? null) : null;
+
+        return is_numeric($value) ? max((int)$value, 0) : 0;
+    }
+
+    private function frameStyle(int $height): string
+    {
+        $style = 'width:100%;pointer-events: none;';
+        if ($height > 0) {
+            $style .= sprintf('max-height: %dpx;', $height);
+        }
+
+        return $style;
+    }
+
+    private function wrapWithEditOverlay(string $iframe, ServerRequestInterface $request, ?RecordInterface $record): string
     {
         if (!$this->features->isFeatureEnabled(self::FEATURE_EDIT_OVERLAY)) {
             return $iframe;
         }
-        [$table, $row] = $this->recordFromTemplateVariables();
+        [$table, $row] = $record instanceof RecordInterface
+            ? [$record->getMainType(), self::row($record->getRawRecord()?->toArray() ?? [])]
+            : $this->recordFromTemplateVariables();
         $uid = is_numeric($row['uid'] ?? null) ? (int)$row['uid'] : 0;
         if ($table === null || $uid === 0 || !$this->recordEditAccess->isEditable($table, $row)) {
             return $iframe;
@@ -220,7 +271,8 @@ class ContentPreviewViewHelper extends AbstractViewHelper implements LoggerAware
     }
 
     /**
-     * The record the preview is rendered for: "data" (Content Blocks) or "record" (classic preview templates).
+     * The record the preview is rendered for: "data" (Content Blocks) or "record" (classic preview
+     * templates), as Record API object or raw row.
      *
      * @return array{0: string|null, 1: array<string, mixed>}
      */
@@ -232,6 +284,9 @@ class ContentPreviewViewHelper extends AbstractViewHelper implements LoggerAware
             return [$data->getMainType(), self::row($data->getRawRecord()?->toArray() ?? [])];
         }
         $record = $variables->exists('record') ? $variables->get('record') : null;
+        if ($record instanceof RecordInterface) {
+            return [$record->getMainType(), self::row($record->getRawRecord()?->toArray() ?? [])];
+        }
         if (is_array($record) && isset($record['uid'])) {
             return ['tt_content', self::row($record)];
         }
@@ -256,16 +311,16 @@ class ContentPreviewViewHelper extends AbstractViewHelper implements LoggerAware
     /**
      * @return list<string>
      */
-    private function resolvedAssetUris(mixed $paths): array
+    private function stringList(mixed $paths): array
     {
-        $uris = [];
+        $list = [];
         foreach (is_array($paths) ? $paths : [] as $path) {
             if (is_string($path) && $path !== '') {
-                $uris[] = $this->publicResourceUri->resolve($path);
+                $list[] = $path;
             }
         }
 
-        return $uris;
+        return $list;
     }
 
     private function positiveNumber(mixed $value): ?float

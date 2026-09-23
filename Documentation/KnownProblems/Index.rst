@@ -60,14 +60,18 @@ an external server are missing in the preview, while they work on the
 website. The console reports a Content Security Policy violation, not a
 CORS error.
 
-**Cause:** the preview document inherits the Content Security Policy of the
-TYPO3 backend, which by default only allows assets from the backend's own
-host. Adding a CORS header does not help here, the browser refuses the
-request before it is sent.
+**Cause:** the preview document only allows assets from the backend's own
+host. Previews rendered in the page module request (srcdoc) inherit that
+rule from the backend's Content Security Policy; previews rendered in their
+own request (the :html:`record` argument) carry it in their own policy.
+Adding a CORS header does not help here, the browser refuses the request
+before it is sent.
 
-**Fix:** serve the assets from your own host, or extend the backend policy
-for the hosts you trust with a :file:`Configuration/ContentSecurityPolicies.php`
-in your site package:
+**Fix:** serve the assets from your own host. For previews rendered in the
+page module request you can alternatively extend the backend policy for the
+hosts you trust with a :file:`Configuration/ContentSecurityPolicies.php` in
+your site package; previews rendered in their own request do not read that
+policy:
 
 ..  code-block:: php
     :caption: EXT:my_site/Configuration/ContentSecurityPolicies.php
@@ -182,6 +186,42 @@ callout names the problem, usually a missing partial, a wrong argument or a
 PHP error in a view helper; in production it shows only the error code and
 the details go to the TYPO3 log. Correct the template and reload the page
 module.
+
+..  _known-problems-cobject-empty:
+
+f:cObject renders nothing in the preview
+========================================
+
+**Symptom:** a preview template uses :html:`<f:cObject typoscriptObjectPath="tt_content">`
+and the preview shows the frame, but no content and no error.
+
+**Cause:** outside the frontend the core view helper takes the TypoScript
+from Extbase's configuration manager but does not put it on the request. The
+ContentObjectRenderer resolves references such as
+:typoscript:`tt_content.default =< lib.contentElement` only from the request
+and silently renders an empty string.
+
+**Fix:** use :html:`<look:backend.contentPreview record="{record}" />`,
+see :ref:`usage-fluid-templates`.
+
+..  _known-problems-no-backend-user:
+
+The preview reports an undefined backend user
+=============================================
+
+**Symptom:** a preview rendered with the :html:`record` argument shows a
+callout mentioning :php:`$GLOBALS['BE_USER']` or a null backend user, while
+the same element works in the frontend.
+
+**Cause:** the element is rendered in a separate request without a backend
+session, see :ref:`security-preview-request`. Code in the site package, a
+data processor or a view helper reads the backend user, which the frontend
+never has either.
+
+**Fix:** make the code work without a backend user, as it has to in the
+frontend. If the element genuinely depends on the backend user, render its
+preview in the page module request instead: leave out :html:`record` and put
+the frontend markup into the view helper's children.
 
 ..  _known-problems-install-tool:
 

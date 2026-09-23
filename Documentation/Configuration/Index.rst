@@ -137,11 +137,13 @@ Sandbox capabilities
             A content element with a video while media are blocked: the layout
             is complete, the video area is a placeholder.
 
-        **On:** the media files load and the first frame of a video is shown;
-        embedded players load as far as the backend Content Security Policy
-        allows their host. Autoplay still does not happen inside the page
-        module, the TYPO3 backend does not grant that permission to embedded
-        frames.
+        **On:** videos, audio and embedded players load inside the previews.
+        Previews rendered in their own request allow media and player frames
+        from any :code:`https:` host, because that is where players live;
+        previews rendered in the page module request (srcdoc) stay within the
+        backend's Content Security Policy, which you can extend for the hosts
+        you need. Autoplay still does not happen inside the page module, the
+        sandbox does not grant that permission to embedded frames.
 
 ..  _feature-flag-edit-overlay:
 
