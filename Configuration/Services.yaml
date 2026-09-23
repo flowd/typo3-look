@@ -4,5 +4,9 @@ services:
         autowire: true
     Flowd\Typo3Look\:
         resource: '../Classes/*'
-        # value object, not a service
-        exclude: '../Classes/Asset/IsolatedRendering.php'
+        # value objects, not services
+        exclude:
+            - '../Classes/Asset/IsolatedRendering.php'
+            - '../Classes/Preview/InvalidPreviewTokenException.php'
+            - '../Classes/Preview/PreviewDescriptor.php'
+            - '../Classes/Rendering/PageTypoScriptResult.php'

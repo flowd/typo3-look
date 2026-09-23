@@ -6,9 +6,11 @@
         <f:comment>
             Only the script tags below run (nonce of the backend request; 'strict-dynamic' covers their
             module imports); scripts inside the preview content are blocked. Without "allowMedia" video,
-            audio and embedded frames are blocked as well. The document also inherits the CSP of the backend.
+            audio and embedded frames are blocked as well (policy built in PreviewDocument). As srcdoc the
+            document also inherits the CSP of the backend; as response of the preview request the same
+            policy is sent as HTTP header.
         </f:comment>
-        <meta http-equiv="Content-Security-Policy" content="script-src 'nonce-{nonce}' 'strict-dynamic';{f:if(condition: '!{allowMedia}', then: ' media-src \'none\'; frame-src \'none\';')}" />
+        <meta http-equiv="Content-Security-Policy" content="{csp}" />
         <f:for each="{assets.css}" as="cssUri">
             <link rel="stylesheet" href="{cssUri}" />
         </f:for>

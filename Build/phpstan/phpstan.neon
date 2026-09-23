@@ -7,6 +7,10 @@ parameters:
         - ../../Tests
     tmpDir: ../../.Build/phpstan
     treatPhpDocTypesAsCertain: false
+    typo3:
+        requestGetAttributeMapping:
+            route: TYPO3\CMS\Backend\Routing\Route|null
+            frontend.register.stack: object|null
     ignoreErrors:
         # RecordEditAccess adapts to TYPO3 13 at runtime; analysed against TYPO3 14 the check is always true
         -
@@ -15,3 +19,10 @@ parameters:
         -
             identifier: function.alreadyNarrowedType
             path: ../../Tests/Unit/*
+        # FrontendSimulation targets TYPO3 13's TypoScriptFrontendController, which TYPO3 14 (the analysed version) no longer has
+        -
+            identifier: class.notFound
+            path: ../../Classes/Rendering/FrontendSimulation.php
+        -
+            identifier: argument.type
+            path: ../../Classes/Rendering/FrontendSimulation.php

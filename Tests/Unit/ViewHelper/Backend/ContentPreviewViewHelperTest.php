@@ -8,17 +8,22 @@ use Flowd\Typo3Look\Asset\AssetCollectorIsolation;
 use Flowd\Typo3Look\Asset\PreviewAssetMarkup;
 use Flowd\Typo3Look\Backend\PageAccess;
 use Flowd\Typo3Look\Backend\RecordEditAccess;
+use Flowd\Typo3Look\Preview\PreviewDocument;
+use Flowd\Typo3Look\Preview\PreviewTokenService;
 use Flowd\Typo3Look\Resource\PublicResourceUri;
 use Flowd\Typo3Look\ViewHelper\Backend\ContentPreviewViewHelper;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\MockObject\MockObject;
 use Psr\Http\Message\ServerRequestInterface;
+use TYPO3\CMS\Backend\Routing\UriBuilder;
 use TYPO3\CMS\Core\Authentication\AccessCheckResult;
 use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Configuration\Features;
+use TYPO3\CMS\Core\Crypto\HashService;
 use TYPO3\CMS\Core\Domain\RawRecord;
 use TYPO3\CMS\Core\Domain\Record\ComputedProperties;
+use TYPO3\CMS\Core\Http\Uri;
 use TYPO3\CMS\Core\Page\AssetCollector;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Security\ContentSecurityPolicy\ConsumableNonce;
@@ -49,6 +54,7 @@ final class ContentPreviewViewHelperTest extends UnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $GLOBALS['TYPO3_CONF_VARS'] = ['SYS' => ['encryptionKey' => str_repeat('k', 96)]];
         $this->features = $this->createMock(Features::class);
         $this->extensionConfiguration = $this->createMock(ExtensionConfiguration::class);
         $this->assetCollector = new AssetCollector();
@@ -83,7 +89,7 @@ final class ContentPreviewViewHelperTest extends UnitTestCase
 
     protected function tearDown(): void
     {
-        unset($GLOBALS['BE_USER']);
+        unset($GLOBALS['BE_USER'], $GLOBALS['TYPO3_CONF_VARS']);
         parent::tearDown();
     }
 
@@ -94,15 +100,19 @@ final class ContentPreviewViewHelperTest extends UnitTestCase
             static fn(string $source): string => str_starts_with($source, 'EXT:') ? '/_assets/abc/' . basename($source) : $source,
         );
         // supportsContextualEditing() instantiates a core view helper through the container, showErrorDetails() reads the environment
+        $previewDocument = new PreviewDocument($this->features, $publicResourceUri, new PreviewAssetMarkup($publicResourceUri), $viewFactory);
+        $uriBuilder = self::createStub(UriBuilder::class);
+        $uriBuilder->method('buildUriFromRoute')->willReturn(new Uri('/typo3/look/preview/token?token=route-token'));
         return new class (
             $this->pageRenderer,
             $this->features,
             $this->extensionConfiguration,
             new AssetCollectorIsolation($this->assetCollector),
-            new PreviewAssetMarkup($publicResourceUri),
             new RecordEditAccess($this->pageAccess),
-            $publicResourceUri,
             $viewFactory,
+            $previewDocument,
+            new PreviewTokenService(new HashService()),
+            $uriBuilder,
             $showErrorDetails,
         ) extends ContentPreviewViewHelper {
             public function __construct(
@@ -110,13 +120,14 @@ final class ContentPreviewViewHelperTest extends UnitTestCase
                 Features $features,
                 ExtensionConfiguration $extensionConfiguration,
                 AssetCollectorIsolation $assetCollectorIsolation,
-                PreviewAssetMarkup $previewAssetMarkup,
                 RecordEditAccess $recordEditAccess,
-                PublicResourceUri $publicResourceUri,
                 ViewFactoryInterface $viewFactory,
+                PreviewDocument $previewDocument,
+                PreviewTokenService $tokenService,
+                UriBuilder $uriBuilder,
                 private readonly bool $errorDetails,
             ) {
-                parent::__construct($pageRenderer, $features, $extensionConfiguration, $assetCollectorIsolation, $previewAssetMarkup, $recordEditAccess, $publicResourceUri, $viewFactory);
+                parent::__construct($pageRenderer, $features, $extensionConfiguration, $assetCollectorIsolation, $recordEditAccess, $viewFactory, $previewDocument, $tokenService, $uriBuilder);
             }
 
             protected function supportsContextualEditing(): bool
@@ -421,6 +432,31 @@ final class ContentPreviewViewHelperTest extends UnitTestCase
         self::assertSame(42, $this->assignedVariables['uid']);
     }
 
+    /**
+     * Classic preview templates get the Record object as "record" since TYPO3 13.4; older
+     * templates and tests still pass the raw row, both must find the record.
+     */
+    #[Test]
+    public function wrapsTheIframeInTheEditOverlayForARecordObjectInTheRecordVariable(): void
+    {
+        $this->withNonce();
+        $this->features->method('isFeatureEnabled')->willReturnCallback(static fn(string $flag): bool => $flag === ContentPreviewViewHelper::FEATURE_EDIT_OVERLAY);
+        $record = new RawRecord(42, 7, ['header' => 'Teaser'], new ComputedProperties(), 'tt_content');
+        $this->variables->add('record', $record);
+        $this->pageAccess->method('read')->with(7, self::anything())->willReturn(['uid' => 7]);
+        $row = ['uid' => 42, 'pid' => 7, 'header' => 'Teaser'];
+        if (method_exists(BackendUserAuthentication::class, 'checkRecordEditAccess')) {
+            $this->backendUser->method('checkRecordEditAccess')->with('tt_content', $row)->willReturn(new AccessCheckResult(true));
+        } else {
+            $this->backendUser->method('recordEditAccessInternals')->with('tt_content', $row)->willReturn(true);
+        }
+
+        $html = $this->render();
+
+        self::assertSame('<!-- EditOverlay -->', $html);
+        self::assertSame(42, $this->assignedVariables['uid']);
+    }
+
     #[Test]
     public function rendersNoEditOverlayWhenTheUserMayNotEditTheRecord(): void
     {
@@ -441,5 +477,54 @@ final class ContentPreviewViewHelperTest extends UnitTestCase
         $this->pageAccess->expects($this->never())->method('read');
 
         self::assertStringStartsWith('<iframe ', $this->render());
+    }
+
+    /**
+     * With "record", the site's PHP runs in a separate request: the frame carries the signed
+     * descriptor and the token route, no srcdoc, and no nonce of the page module is needed.
+     */
+    #[Test]
+    public function rendersAnIsolatedPreviewForARecord(): void
+    {
+        $this->backendUser->method('getUserId')->willReturn(3);
+        $this->backendUser->workspace = 0;
+        $this->subject->setRenderChildrenClosure(static fn(): string => '');
+
+        $html = $this->render(['record' => new RawRecord(42, 7, ['header' => 'Teaser'], new ComputedProperties(), 'tt_content'), 'css' => ['EXT:my_site/main.css']]);
+
+        self::assertStringStartsWith('<iframe', $html);
+        self::assertStringNotContainsString('srcdoc=', $html);
+        self::assertStringContainsString('src="about:blank"', $html);
+        self::assertStringContainsString('sandbox="allow-scripts"', $html);
+        self::assertStringContainsString('data-look-preview-token-url="/typo3/look/preview/token?token=route-token"', $html);
+        self::assertSame(1, preg_match('/data-look-preview="([^"]+)"/', $html, $matches));
+        $descriptor = (new PreviewTokenService(new HashService()))->verifyDescriptor($matches[1]);
+        self::assertSame('tt_content', $descriptor->table);
+        self::assertSame(42, $descriptor->uid);
+        self::assertSame(7, $descriptor->pid);
+        self::assertEqualsWithDelta(time(), $descriptor->issued, 5);
+        self::assertSame(3, $descriptor->backendUserId);
+        self::assertSame(['EXT:my_site/main.css'], $descriptor->css);
+        self::assertSame('tt_content', $descriptor->typoScriptObjectPath);
+    }
+
+    #[Test]
+    public function refusesChildrenTogetherWithARecord(): void
+    {
+        $this->backendUser->method('getUserId')->willReturn(3);
+
+        $html = $this->render(['record' => new RawRecord(42, 7, [], new ComputedProperties(), 'tt_content')]);
+
+        self::assertStringContainsString('callout-danger', $html);
+        self::assertStringContainsString('either its children or the &quot;record&quot; argument', $html);
+    }
+
+    #[Test]
+    public function anIsolatedPreviewNeedsALoggedInBackendUser(): void
+    {
+        $this->backendUser->method('getUserId')->willReturn(null);
+        $this->subject->setRenderChildrenClosure(static fn(): string => '');
+
+        self::assertStringContainsString('needs a logged in backend user', $this->render(['record' => new RawRecord(42, 7, [], new ComputedProperties(), 'tt_content')]));
     }
 }

@@ -14,6 +14,8 @@ frame. Editors see what visitors get, without switching to the frontend.
 
 - **Real rendering.** One Fluid view helper wraps the frontend markup of a content element and
   shows it scaled down in the page module. No second set of preview templates to maintain.
+  Classic content types are rendered through the site's TypoScript, exactly as the frontend does
+  it, in a request of their own.
 - **Isolated by default.** Every preview is a sandboxed `<iframe>` with an opaque origin: no
   access to the backend, its session or storage, no forms, no navigation, no clicks. A Content
   Security Policy limits scripts to the ones Look emits; media files and embedded players are
@@ -47,8 +49,16 @@ vendor/bin/typo3 extension:setup
 
 ## Quick start
 
-Wrap the frontend rendering of a content element in the view helper. With Content Blocks this is
-the `backend-preview.html` of the block:
+There are two ways to get the frontend markup of a content element into the preview. Both end up
+in the same view helper, `look:backend.contentPreview`, which wraps the markup in the isolated
+frame.
+
+### 1. Content Blocks with Fluid Components (preferred)
+
+If your site renders its elements with [Content Blocks](https://docs.typo3.org/p/friendsoftypo3/content-blocks/main/en-us/)
+and Fluid Components, use them for the preview as well: the `backend-preview.html` of a block
+renders the same component as the frontend template. The preview is the frontend, one component,
+no TypoScript involved.
 
 ```html
 <html data-namespace-typo3-fluid="true"
@@ -69,11 +79,40 @@ the `backend-preview.html` of the block:
 </html>
 ```
 
-Classic content elements use the same view helper in the template registered via
-`mod.web_layout.tt_content.preview.<CType>`.
+### 2. Classic content types through TypoScript
+
+Content types rendered the classic way (`tt_content` as `CASE` object, FLUIDTEMPLATE, data
+processors) register a preview template via `mod.web_layout.tt_content.preview.<CType>`. There,
+the template hands the record to the view helper, which renders it with the frontend TypoScript of
+its page, exactly as the frontend does. One template can serve every content type of a site, and
+overrides in a site package apply to the preview automatically.
+
+```html
+<html data-namespace-typo3-fluid="true"
+      xmlns:f="http://typo3.org/ns/TYPO3/CMS/Fluid/ViewHelpers"
+      xmlns:look="http://typo3.org/ns/Flowd/Typo3Look/ViewHelper">
+<look:backend.contentPreview record="{record}" css="{0: 'EXT:my_site/Resources/Public/Css/main.css'}" />
+</html>
+```
+
+The rendering happens in a separate request: the page module only emits a signed description of
+what to render, the frame fetches it with a short-lived token. Frontend TypoScript is code, not just
+templates: data processors query, USER objects run PHP, Extbase plugins send headers and clear
+caches, TYPO3 13 needs a frontend controller in a global. None of that belongs in an authenticated
+backend request, so none of it runs there; an error in one element stays in one frame. See the
+security chapter of the documentation for the details.
+
+Use this for themes and site packages that are not built on Content Blocks, for example the
+TYPO3 v14 default theme Camino or fluid_styled_content. Where Content Blocks and components are in
+use, prefer the first way: it renders without the detour through TypoScript and stays closer to
+what the frontend does.
+
+### Arguments of `look:backend.contentPreview`
 
 | Argument    | Description                                                                  |
 |-------------|------------------------------------------------------------------------------|
+| `record`    | Render this record with the frontend TypoScript of its page in a separate request (no children then) |
+| `typoscriptObjectPath` | With `record`: content object that renders it, default `tt_content` |
 | `css`       | Stylesheets to load inside the frame (`EXT:` paths or URLs)                  |
 | `js`        | JavaScript modules to load inside the frame (needs `allowSiteScripts`)       |
 | `bodyClass` | Class attribute of the `<body>` inside the frame                             |

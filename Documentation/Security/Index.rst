@@ -71,10 +71,17 @@ embedded players (YouTube, Vimeo and other iframes) are not loaded either;
 videos appear as striped placeholder boxes. Besides bandwidth this avoids a
 page module full of playing videos.
 
-The preview document also inherits the Content Security Policy of the TYPO3
-backend. Its default only allows assets from the backend's own host, so
-external fonts, libraries or images need an explicit extension of that
-policy, see :ref:`known-problems-external-hosts`.
+Previews rendered in the page module request (srcdoc) also inherit the
+Content Security Policy of the TYPO3 backend, whose default only allows assets
+from the backend's own host. Previews rendered in their own request (see
+:ref:`security-preview-request`) inherit nothing from the backend page, so
+their document carries a complete policy of its own, sent as HTTP header and
+repeated as :html:`<meta>`: :code:`default-src 'self'`, images and fonts from
+the own host or inline as :code:`data:`, stylesheets from the own host or
+inline, no connections to other hosts, no plugins, no :html:`<base>`, no form
+targets, no media and no embedded frames unless allowed by the feature flag.
+Either way, a tracking pixel or a script from a foreign host in an editor's
+text does not load in the page module.
 
 ..  _security-permissions:
 
@@ -111,3 +118,78 @@ Some frontend techniques need adjustments
     :code:`sessionStorage` or :code:`localStorage` and cannot autoplay media;
     guard such calls in your frontend code as you would for private browsing
     modes.
+
+..  _security-preview-request:
+
+Previews rendered in a separate request
+=======================================
+
+Previews with the :html:`record` argument run the site's PHP, the frontend
+TypoScript with its templates, data processors and plugins, in a request of
+its own instead of the page module request. Whatever that code does, from an
+exception to a fatal error, a timeout, a plugin sending headers or leaving
+global state behind, ends with that request and never reaches the page module
+or the editor's backend session.
+
+How the frame gets its content
+------------------------------
+
+#.  The page module emits the frame without a source, only with a signed
+    **descriptor**: table and uid of the record, its workspace and language,
+    the content object to render, the frame options (stylesheets, scripts,
+    body class, scale, height) and the id of the backend user. The signature
+    is an HMAC over the site's encryption key. The descriptor grants nothing
+    by itself and can be exchanged for tokens for eight hours after the page
+    module rendered it.
+
+#.  When the frame comes into view, Look's script in the page module sends
+    the descriptor to the **token route**, a regular authenticated AJAX route
+    of the backend. The route checks the signature, that the logged in user
+    is the one the descriptor was issued for, that the descriptor is younger
+    than eight hours, and that the user may still see the record: same
+    workspace, read access to the table, the page and the language, and the
+    record still on that page. Then it answers with a **token**: the
+    descriptor plus an expiry five seconds ahead, signed again. Nothing is
+    stored on the server.
+
+#.  The token becomes the frame's :html:`src`, a public backend route. The
+    frame has an opaque origin and must work without a session, so the route
+    is answered before the backend authentication and never looks at
+    cookies; it accepts only the token. Signature and expiry are checked,
+    then the element is rendered and the frame document is returned with its
+    Content Security Policy as HTTP header. An expired token gets a 410
+    response and the page module fetches one fresh token; a bad signature
+    gets a 403.
+
+What this means
+---------------
+
+*   A token that leaks, through a log or a browser history, is useless
+    seconds later and only ever rendered one element for one user's view.
+    The descriptor in the page module cannot be turned into a token without
+    that user's session, and a descriptor kept from an earlier view stops
+    working when the user loses access to the record or eight hours pass.
+
+*   Both signatures use the site's **encryption key**
+    (:php:`$GLOBALS['TYPO3_CONF_VARS']['SYS']['encryptionKey']`). Whoever
+    knows the key can forge tokens and render any record without a login,
+    the same way they could forge everything else TYPO3 signs with it. Keep
+    the key out of repositories and logs; rotating it invalidates all
+    descriptors and tokens at once, editors just reload the page module.
+
+*   The preview request has **no backend user**. Storages, image processing
+    and URL generation behave as in the frontend. Workspace and language are
+    taken from the token, so editors in a workspace see their versions.
+    TypoScript that expects a backend user, or a data processor reading
+    :php:`$GLOBALS['BE_USER']`, fails in the frame with a callout, not in the
+    page module.
+
+*   The route is public by necessity, but it renders nothing without a valid
+    token, and a token can only be minted by an authenticated backend user
+    for a record the page module already showed them.
+
+*   Rendering frontend TypoScript means running the site package's PHP with
+    the rights of the web server, as every frontend request does. This is the
+    same trust you place in the frontend; nothing in the preview request
+    grants it more.
+
