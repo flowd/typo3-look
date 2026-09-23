@@ -56,9 +56,16 @@ jobs:
             echo "ext_emconf.php carries version '$ACTUAL', expected '$version'"; exit 1
           fi
 
+      - uses: pandoc/actions/setup@86321b6dd4675f5014c611e05088e10d4939e09e # v1.1.1
+        with:
+          version: '3.11'
+
       # The release body reaches the script through the environment, never through "${{ }}"
       # interpolation: expressions are substituted into the script text before the shell runs, so a
       # body could otherwise end the here-document and have the rest executed as shell commands.
+      # The TER shows the upload comment as plain text, so the Markdown of the release notes is
+      # converted with pandoc. Link targets of [text](url) links are dropped; the release URL at the
+      # top leads to the full notes.
       - name: Upload to TER
         env:
           TYPO3_API_TOKEN: ${{ secrets.TYPO3_API_TOKEN }}
@@ -66,8 +73,12 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          COMMENT="$RELEASE_BODY"
-          if [ -z "$(echo "$COMMENT" | tr -d '[:space:]')" ]; then
-            COMMENT="Release $version, see https://github.com/$REPOSITORY/releases/tag/$TAG"
+          set -euo pipefail
+          RELEASE_URL="https://github.com/$REPOSITORY/releases/tag/$TAG"
+          if [ -z "$(printf '%s' "$RELEASE_BODY" | tr -d '[:space:]')" ]; then
+            COMMENT="Release $version, see $RELEASE_URL"
+          else
+            NOTES="$(printf '%s' "$RELEASE_BODY" | pandoc --from gfm --to plain --wrap=none)"
+            COMMENT="Full release notes: $RELEASE_URL"$'\n\n'"$NOTES"
           fi
           tailor ter:publish --comment "$COMMENT" "$version"
