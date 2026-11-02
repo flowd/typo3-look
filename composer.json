@@ -85,11 +85,13 @@
 			"@check:php:cs-fixer",
 			"@check:php:phpstan",
 			"@check:php:rector",
-			"@check:tests:unit"
+			"@check:tests:unit",
+			"@check:tests:functional"
 		],
 		"check:php:cs-fixer": "php-cs-fixer fix --config=Build/php-cs-fixer/config.php --dry-run --diff",
 		"check:php:phpstan": "phpstan analyse --configuration=Build/phpstan/phpstan.neon --no-progress",
 		"check:php:rector": "rector process --config=Build/rector/config.php --dry-run",
+		"check:tests:functional": "phpunit -c Build/phpunit/FunctionalTests.xml",
 		"check:tests:unit": "phpunit -c Build/phpunit/UnitTests.xml",
 		"fix": [
 			"@fix:php:rector",
@@ -99,10 +101,11 @@
 		"fix:php:rector": "rector process --config=Build/rector/config.php"
 	},
 	"scripts-descriptions": {
-		"check": "Runs all checks: code style, static analysis, Rector, unit tests.",
+		"check": "Runs all checks: code style, static analysis, Rector, unit and functional tests.",
 		"check:php:cs-fixer": "Checks the code style (PHP-CS-Fixer, TYPO3 coding standards).",
 		"check:php:phpstan": "Runs the static analysis (PHPStan, level max).",
 		"check:php:rector": "Checks whether Rector would change code.",
+		"check:tests:functional": "Runs the functional tests (SQLite).",
 		"check:tests:unit": "Runs the unit tests.",
 		"fix": "Applies Rector and PHP-CS-Fixer."
 	}

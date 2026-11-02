@@ -49,3 +49,6 @@ jobs:
 
       - name: Unit tests
         run: composer check:tests:unit
+
+      - name: Functional tests
+        run: composer check:tests:functional
