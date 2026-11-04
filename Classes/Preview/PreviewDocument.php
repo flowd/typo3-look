@@ -33,8 +33,8 @@ final readonly class PreviewDocument
     ) {}
 
     /**
-     * @param list<string> $css stylesheets as EXT: paths or URLs
-     * @param list<string> $js script modules as EXT: paths or URLs, loaded only with the allowSiteScripts flag
+     * @param list<string> $css stylesheets as resource identifiers (EXT:), public paths or URLs
+     * @param list<string> $js script modules as resource identifiers (EXT:), public paths or URLs, loaded only with the allowSiteScripts flag
      */
     public function render(
         ServerRequestInterface $request,
@@ -57,7 +57,7 @@ final readonly class PreviewDocument
             'csp' => $this->contentSecurityPolicy($nonce),
             'previewContent' => $rendering->content,
             'assets' => [
-                'css' => [$this->publicResourceUri->resolve('EXT:look/Resources/Public/Css/Backend/iFramePreview.css'), ...$this->resolve($css)],
+                'css' => $this->resolve(['EXT:look/Resources/Public/Css/Backend/iFramePreview.css', ...$css]),
                 'lookScript' => $this->publicResourceUri->resolve('EXT:look/Resources/Public/Javascript/Backend/iFramePreview.js'),
                 'js' => $allowSiteScripts ? $this->resolve($js) : [],
                 'collectedStyles' => $this->previewAssetMarkup->styles($rendering->assets),
@@ -125,6 +125,8 @@ final readonly class PreviewDocument
     }
 
     /**
+     * URIs of the given paths; empty and unresolvable paths are left out.
+     *
      * @param list<string> $paths
      * @return list<string>
      */
@@ -132,8 +134,9 @@ final readonly class PreviewDocument
     {
         $uris = [];
         foreach ($paths as $path) {
-            if ($path !== '') {
-                $uris[] = $this->publicResourceUri->resolve($path);
+            $uri = $path !== '' ? $this->publicResourceUri->resolve($path) : null;
+            if ($uri !== null) {
+                $uris[] = $uri;
             }
         }
 

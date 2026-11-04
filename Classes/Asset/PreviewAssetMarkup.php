@@ -26,10 +26,14 @@ final readonly class PreviewAssetMarkup
     {
         $tags = [];
         foreach ($this->byPriority($assets['styleSheets']) as $asset) {
+            $href = $this->publicResourceUri->resolve($asset['source']);
+            if ($href === null) {
+                continue;
+            }
             $tag = new TagBuilder('link');
             $tag->addAttributes($asset['attributes']);
             $tag->addAttribute('rel', 'stylesheet');
-            $tag->addAttribute('href', $this->publicResourceUri->resolve($asset['source']));
+            $tag->addAttribute('href', $href);
             $tags[] = $tag->render();
         }
         foreach ($this->byPriority($assets['inlineStyleSheets']) as $asset) {
@@ -49,9 +53,13 @@ final readonly class PreviewAssetMarkup
     {
         $tags = [];
         foreach ($this->byPriority($assets['javaScripts']) as $asset) {
+            $src = $this->publicResourceUri->resolve($asset['source']);
+            if ($src === null) {
+                continue;
+            }
             $tag = new TagBuilder('script');
             $tag->addAttributes($asset['attributes']);
-            $tag->addAttribute('src', $this->publicResourceUri->resolve($asset['source']));
+            $tag->addAttribute('src', $src);
             $tag->addAttribute('nonce', $nonce);
             $tag->forceClosingTag(true);
             $tags[] = $tag->render();

@@ -23,7 +23,11 @@ final class PreviewAssetMarkupTest extends UnitTestCase
         parent::setUp();
         $publicResourceUri = self::createStub(PublicResourceUri::class);
         $publicResourceUri->method('resolve')->willReturnCallback(
-            static fn(string $source): string => str_starts_with($source, 'EXT:') ? '/_assets/abc/Css/site.css' : $source,
+            static fn(string $source): ?string => match (true) {
+                str_starts_with($source, 'EXT:missing/') => null,
+                str_starts_with($source, 'EXT:') => '/_assets/abc/Css/site.css',
+                default => $source,
+            },
         );
         $this->subject = new PreviewAssetMarkup($publicResourceUri);
     }
@@ -98,6 +102,18 @@ final class PreviewAssetMarkupTest extends UnitTestCase
             . '<script nonce="n0nce">boot();</script>',
             $html,
         );
+    }
+
+    #[Test]
+    public function unresolvableAssetsAreLeftOut(): void
+    {
+        $missing = ['source' => 'EXT:missing/Resources/Public/site.css', 'attributes' => [], 'options' => []];
+        $html = $this->subject->styles($this->assets(
+            styleSheets: ['missing' => $missing, 'cdn' => ['source' => 'https://example.org/site.css', 'attributes' => [], 'options' => []]],
+        ));
+
+        self::assertSame('<link rel="stylesheet" href="https://example.org/site.css" />', $html);
+        self::assertSame('', $this->subject->scripts($this->assets(javaScripts: ['missing' => $missing]), 'n0nce'));
     }
 
     #[Test]
